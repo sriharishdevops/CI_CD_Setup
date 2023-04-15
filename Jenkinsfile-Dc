@@ -1,0 +1,46 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Clone repository') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build image') {
+            steps {
+                script {
+                    def app = docker.build("sriharish86/cicd")
+                    env.IMAGE_TAG = "${app.id}"
+                }
+            }
+        }
+
+        stage('Test image') {
+            steps {
+                script {
+                    docker.image("sriharish86/cicd:${env.IMAGE_TAG}").inside {
+                        sh 'echo "Tests passed"'
+                    }
+                }
+            }
+        }
+
+        stage('Push image') {
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'docker-cred') {
+                        docker.image("sriharish86/cicd:${env.IMAGE_TAG}").push()
+                    }
+                }
+            }
+        }
+
+        stage('Trigger ManifestUpdate') {
+            steps {
+                build job: 'updatemanifest', parameters: [string(name: 'DOCKERTAG', value: env.IMAGE_TAG)]
+            }
+        }
+    }
+}
